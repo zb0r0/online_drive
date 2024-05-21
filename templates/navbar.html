@@ -9,16 +9,9 @@
         <li class="nav-item">
           <a class="nav-link active" aria-current="page" href="/">Drive</a>
         </li>
-          {% if current_user.is_authenticated %}
             <li class="nav-item">
               <a class="nav-link" href="/profile">Your profile</a>
             </li>
-          {% else %}
-            <li class="nav-item">
-              <a class="nav-link" href="/login">Your profile</a>
-            </li>
-          {% endif %}
-
       </ul>
       <form class="d-flex" role="search">
         <input class="form-control me-2" type="search" placeholder="Search" aria-label="Search">

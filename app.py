@@ -16,6 +16,5 @@ from routes import *
 if not os.path.exists('uploads'):
     os.makedirs('uploads')
 
-
 if __name__ == '__main__':
     app.run(debug=True)
