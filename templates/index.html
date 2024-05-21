@@ -3,5 +3,21 @@
 Online Drive
 {% endblock %}
 {% block body %}
-<h1>Siemano</h1>
+    <h1>Welcome to the Home Page</h1>
+    {% if current_user.is_authenticated %}
+        <h2>Your Files:</h2>
+        <ul>
+            {% for file in files %}
+                <li>
+                    <a href="{{ url_for('uploaded_file', filename=file.filename) }}">{{ file.filename }}</a>
+                    <form action="{{ url_for('delete_file', file_id=file.id) }}" method="post" style="display: inline;">
+                        <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+                    </form>
+                </li>
+            {% endfor %}
+        </ul>
+        <a href="{{ url_for('upload_file') }}">Upload New File</a>
+    {% else %}
+        <p>Please <a href="{{ url_for('login') }}">log in</a> to see your files.</p>
+    {% endif %}
 {% endblock %}

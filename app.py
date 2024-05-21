@@ -1,3 +1,4 @@
+import os
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager
@@ -11,6 +12,10 @@ login_manager.login_message_category = 'info'
 
 from models import User
 from routes import *
+
+if not os.path.exists('uploads'):
+    os.makedirs('uploads')
+
 
 if __name__ == '__main__':
     app.run(debug=True)
