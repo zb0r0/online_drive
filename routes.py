@@ -1,11 +1,29 @@
 import os
-from flask import render_template, url_for, redirect, flash, request, send_from_directory
+import requests
+from flask import render_template, url_for, redirect, flash, request, send_from_directory, jsonify
 from flask_login import login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 from app import app, db, login_manager
 from models import User, FileStorage
 from forms import RegistrationForm, LoginForm, UploadFileForm
+import logging
+
+def get_payu_access_token():
+    response = requests.post(
+        f"{app.config['PAYU_API_URL']}/pl/standard/user/oauth/authorize",
+        data={
+            'grant_type': 'client_credentials',
+            'client_id': app.config['PAYU_CLIENT_ID'],
+            'client_secret': app.config['PAYU_CLIENT_SECRET']
+        }
+    )
+
+    if response.status_code == 200:
+        return response.json().get('access_token')
+    else:
+        logging.error('Failed to obtain access token from PayU')
+        return None
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -67,7 +85,6 @@ def upload_file():
         filepath = os.path.join('uploads', filename)
         file.save(filepath)
 
-        # Zapisz informacje o pliku w bazie danych
         file_storage = FileStorage(filename=filename, filepath=filepath, user_id=current_user.id)
         db.session.add(file_storage)
         db.session.commit()
@@ -95,3 +112,68 @@ def delete_file(file_id):
 
     flash('File deleted successfully', 'success')
     return redirect(url_for('home_page'))
+
+@app.route('/buy_premium', methods=['POST'])
+@login_required
+def buy_premium():
+    access_token = get_payu_access_token()
+    if not access_token:
+        flash('Failed to obtain access token from PayU', 'danger')
+        return redirect(url_for('profile'))
+
+    order_data = {
+        "notifyUrl": app.config['PAYU_NOTIFY_URL'],
+        "customerIp": request.remote_addr,
+        "merchantPosId": app.config['PAYU_CLIENT_ID'],
+        "description": "Premium Membership",
+        "currencyCode": "PLN",
+        "totalAmount": "1000",
+        "products": [
+            {
+                "name": "Premium Membership",
+                "unitPrice": "1000",
+                "quantity": "1"
+            }
+        ],
+        "buyer": {
+            "email": current_user.email,
+            "firstName": current_user.username,
+            "language": "pl"
+        },
+        "continueUrl": app.config['PAYU_CONTINUE_URL']
+    }
+
+    headers = {
+        'Authorization': f'Bearer {access_token}',
+        'Content-Type': 'application/json'
+    }
+
+    response = requests.post(
+        f"{app.config['PAYU_API_URL']}/api/v2_1/orders",
+        json=order_data,
+        headers=headers,
+        allow_redirects=False  # Disable automatic redirect handling
+    )
+
+    logging.debug(f'PayU response headers: {response.headers}')
+    logging.debug(f'PayU response status code: {response.status_code}')
+    logging.debug(f'PayU response content: {response.content}')
+
+    if response.status_code in (200, 201):
+        return redirect(response.json().get('redirectUri'))
+    elif response.status_code == 302:
+        return redirect(response.headers.get('Location'))
+    else:
+        flash('There was an error with the payment gateway.', 'danger')
+        return redirect(url_for('profile'))
+
+@app.route('/notify', methods=['POST'])
+def notify():
+    data = request.json
+    # Verify the notification here with PayU if needed
+    if data['order']['status'] == 'COMPLETED':
+        user = User.query.filter_by(email=data['order']['buyer']['email']).first()
+        if user:
+            user.is_premium = True
+            db.session.commit()
+    return jsonify({'status': 'ok'})

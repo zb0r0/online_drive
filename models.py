@@ -6,6 +6,7 @@ class User(db.Model, UserMixin):
     username = db.Column(db.String(20), nullable=False, unique=True)
     email = db.Column(db.String(50), nullable=False, unique=True)
     password = db.Column(db.String(500), nullable=False)
+    premium = db.Column(db.Boolean, default=False)
     files = db.relationship('FileStorage', backref='user', lazy=True)
 
     def __repr__(self):
