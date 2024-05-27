@@ -78,6 +78,12 @@ def profile():
 @app.route('/upload', methods=['GET', 'POST'])
 @login_required
 def upload_file():
+    if not current_user.premium:
+        user_file_count = FileStorage.query.filter_by(user_id=current_user.id).count()
+        if user_file_count >= 3:
+            flash('Non-premium users can upload up to 3 files only.', 'danger')
+            return redirect(url_for('home_page'))
+
     form = UploadFileForm()
     if form.validate_on_submit():
         file = form.file.data
@@ -170,10 +176,17 @@ def buy_premium():
 @app.route('/notify', methods=['POST'])
 def notify():
     data = request.json
-    # Verify the notification here with PayU if needed
+    logging.debug(f'PayU notification received: {data}')
+    print(data)
     if data['order']['status'] == 'COMPLETED':
         user = User.query.filter_by(email=data['order']['buyer']['email']).first()
         if user:
-            user.is_premium = True
+            user.premium = True
             db.session.commit()
+            logging.info(f'User {user.email} has been upgraded to premium.')
+        else:
+            logging.warning(f'User with email {data['order']['buyer']['email']} not found.')
+    else:
+        logging.warning(f'Order status is not completed: {data["order"]["status"]}')
+
     return jsonify({'status': 'ok'})
