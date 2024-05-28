@@ -4,9 +4,9 @@ from flask import render_template, url_for, redirect, flash, request, send_from_
 from flask_login import login_user, login_required, logout_user, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
-from app import app, db, login_manager
-from models import User, FileStorage
-from forms import RegistrationForm, LoginForm, UploadFileForm
+from backend.app import app, db, login_manager
+from backend.models import User, FileStorage
+from backend.forms import RegistrationForm, LoginForm, UploadFileForm
 import logging
 
 def get_payu_access_token():
@@ -88,7 +88,7 @@ def upload_file():
     if form.validate_on_submit():
         file = form.file.data
         filename = secure_filename(file.filename)
-        filepath = os.path.join('uploads', filename)
+        filepath = os.path.join('backend', 'uploads', filename)
         file.save(filepath)
 
         file_storage = FileStorage(filename=filename, filepath=filepath, user_id=current_user.id)
@@ -103,7 +103,6 @@ def upload_file():
 @login_required
 def uploaded_file(filename):
     return send_from_directory('uploads', filename)
-
 
 @app.route('/delete/<int:file_id>', methods=['POST'])
 @login_required
