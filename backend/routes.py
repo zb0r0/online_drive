@@ -189,3 +189,82 @@ def notify():
         logging.warning(f'Order status is not completed: {data["order"]["status"]}')
 
     return jsonify({'status': 'ok'})
+
+@app.route('/api/check_auth')
+def check_auth():
+    return jsonify({'isAuthenticated': current_user.is_authenticated})
+
+@app.route('/api/files')
+@login_required
+def get_files():
+    files = FileStorage.query.filter_by(user_id=current_user.id).all()
+    files_list = [{'id': file.id, 'filename': file.filename} for file in files]
+    return jsonify({'files': files_list})
+
+@app.route('/api/delete/<int:file_id>', methods=['POST'])
+@login_required
+def delete_file_api(file_id):
+    file = FileStorage.query.get_or_404(file_id)
+    if os.path.exists(file.filepath):
+        os.remove(file.filepath)
+    db.session.delete(file)
+    db.session.commit()
+    return jsonify({'success': True})
+
+@app.route('/api/user')
+@login_required
+def get_user():
+    user_data = {
+        'username': current_user.username,
+        'email': current_user.email,
+        'premium': current_user.premium
+    }
+    return jsonify(user_data)
+
+@app.route('/api/buy_premium', methods=['POST'])
+@login_required
+def buy_premium_api():
+    access_token = get_payu_access_token()
+    if not access_token:
+        return jsonify({'error': 'Failed to obtain access token from PayU'}), 400
+
+    order_data = {
+        "notifyUrl": app.config['PAYU_NOTIFY_URL'],
+        "customerIp": request.remote_addr,
+        "merchantPosId": app.config['PAYU_CLIENT_ID'],
+        "description": "Premium Membership",
+        "currencyCode": "PLN",
+        "totalAmount": "1000",
+        "products": [
+            {
+                "name": "Premium Membership",
+                "unitPrice": "1000",
+                "quantity": "1"
+            }
+        ],
+        "buyer": {
+            "email": current_user.email,
+            "firstName": current_user.username,
+            "language": "pl"
+        },
+        "continueUrl": app.config['PAYU_CONTINUE_URL']
+    }
+
+    headers = {
+        'Authorization': f'Bearer {access_token}',
+        'Content-Type': 'application/json'
+    }
+
+    response = requests.post(
+        f"{app.config['PAYU_API_URL']}/api/v2_1/orders",
+        json=order_data,
+        headers=headers,
+        allow_redirects=False
+    )
+
+    if response.status_code in (200, 201):
+        return jsonify({'redirectUrl': response.json().get('redirectUri')})
+    elif response.status_code == 302:
+        return jsonify({'redirectUrl': response.headers.get('Location')})
+    else:
+        return jsonify({'error': 'There was an error with the payment gateway.'}), 400
