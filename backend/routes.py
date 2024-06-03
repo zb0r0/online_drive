@@ -268,5 +268,3 @@ def buy_premium_api():
         return jsonify({'redirectUrl': response.headers.get('Location')})
     else:
         return jsonify({'error': 'There was an error with the payment gateway.'}), 400
-
-#commit
