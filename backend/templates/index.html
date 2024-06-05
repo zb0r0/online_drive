@@ -1,23 +1,177 @@
-{% extends 'base.html' %}
-{% block title %}
-Online Drive
-{% endblock %}
-{% block body %}
-    <h1>Welcome to the Home Page</h1>
-    {% if current_user.is_authenticated %}
-        <h2>Your Files:</h2>
-        <ul>
-            {% for file in files %}
-                <li>
-                    <a href="{{ url_for('uploaded_file', filename=file.filename) }}">{{ file.filename }}</a>
-                    <form action="{{ url_for('delete_file', file_id=file.id) }}" method="post" style="display: inline;">
-                        <button type="submit" class="btn btn-danger btn-sm">Delete</button>
-                    </form>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Online Drive</title>
+</head>
+<body>
+    <div id="app">
+        <div v-if="!currentUser">
+            <h1>Online Drive</h1>
+            <h2>Login</h2>
+            <form @submit.prevent="login">
+                <input type="email" v-model="loginForm.email" placeholder="Email" required>
+                <input type="password" v-model="loginForm.password" placeholder="Password" required>
+                <button type="submit">Login</button>
+                <span v-if="loginError" style="color: red;">{{ loginError }}</span>
+            </form>
+            <h2>Register</h2>
+            <form @submit.prevent="register">
+                <input type="text" v-model="registerForm.username" placeholder="Username" required>
+                <input type="email" v-model="registerForm.email" placeholder="Email" required>
+                <input type="password" v-model="registerForm.password" placeholder="Password" required>
+                <button type="submit">Register</button>
+                <span v-if="registerErrors" style="color: red;">{{ registerErrors }}</span>
+            </form>
+        </div>
+
+        <div v-else>
+            <h1>Welcome, {{ currentUser.username }}</h1>
+            <button @click="logout">Logout</button>
+            <h2>Upload File</h2>
+            <form @submit.prevent="uploadFile" enctype="multipart/form-data">
+                <input type="file" v-model="file" accept=".txt,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx">
+                <button type="submit">Upload</button>
+                <span v-if="uploadError" style="color: red;">{{ uploadError }}</span>
+            </form>
+            <h2>Your Files</h2>
+            <ul>
+                <li v-for="file in files" :key="file.id">
+                    <a :href="'/uploads/' + file.filename" target="_blank">{{ file.filename }}</a>
+                    <button @click="deleteFile(file.id)">Delete</button>
                 </li>
-            {% endfor %}
-        </ul>
-        <a href="{{ url_for('upload_file') }}">Upload New File</a>
-    {% else %}
-        <p>Please <a href="{{ url_for('login') }}">log in</a> to see your files.</p>
-    {% endif %}
-{% endblock %}
+            </ul>
+        </div>
+    </div>
+
+    <!-- Import Vue.js -->
+    <script src="https://cdn.jsdelivr.net/npm/vue@3"></script>
+    <!-- Import Axios for HTTP requests -->
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <!-- Import app.js -->
+    <script src="{{ url_for('static', filename='app.js') }}"></script>
+
+    <script>
+        const app = Vue.createApp({
+            data() {
+                return {
+                    currentUser: null,
+                    loginForm: {
+                        email: '',
+                        password: ''
+                    },
+                    registerForm: {
+                        username: '',
+                        email: '',
+                        password: ''
+                    },
+                    files: [],
+                    file: null,
+                    loginError: '',
+                    registerErrors: '',
+                    uploadError: ''
+                };
+            },
+            created() {
+                this.getCurrentUser();
+                this.getFiles();
+            },
+            methods: {
+                getCurrentUser() {
+                    axios.get('/profile')
+                        .then(response => {
+                            this.currentUser = response.data;
+                        })
+                        .catch(error => {
+                            console.error('Error fetching current user:', error);
+                        });
+                },
+                getFiles() {
+                    axios.get('/')
+                        .then(response => {
+                            this.files = response.data.files;
+                        })
+                        .catch(error => {
+                            console.error('Error fetching files:', error);
+                        });
+                },
+                login() {
+                    axios.post('/login', this.loginForm)
+                        .then(response => {
+                            if (response.data.message === 'Login successful') {
+                                this.getCurrentUser();
+                                this.loginError = '';
+                            } else {
+                                this.loginError = response.data.message;
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Error logging in:', error);
+                            this.loginError = 'Error logging in. Please try again.';
+                        });
+                },
+                register() {
+                    axios.post('/register', this.registerForm)
+                        .then(response => {
+                            if (response.data.message === 'Registration successful') {
+                                this.loginForm.email = this.registerForm.email;
+                                this.loginForm.password = this.registerForm.password;
+                                this.login();
+                                this.registerErrors = '';
+                            } else {
+                                this.registerErrors = 'Registration failed. Please check your information.';
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Error registering:', error);
+                            this.registerErrors = 'Error registering. Please try again.';
+                        });
+                },
+                logout() {
+                    axios.post('/logout')
+                        .then(response => {
+                            if (response.data.message === 'Logout successful') {
+                                this.currentUser = null;
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Error logging out:', error);
+                        });
+                },
+                uploadFile() {
+                    let formData = new FormData();
+                    formData.append('file', this.file);
+
+                    axios.post('/upload', formData)
+                        .then(response => {
+                            if (response.data.message === 'File successfully uploaded') {
+                                this.getFiles();
+                                this.uploadError = '';
+                            } else {
+                                this.uploadError = response.data.errors.file[0];
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Error uploading file:', error);
+                            this.uploadError = 'Error uploading file. Please try again.';
+                        });
+                },
+                deleteFile(fileId) {
+                    axios.delete(`/delete/${fileId}`)
+                        .then(response => {
+                            if (response.data.message === 'File deleted successfully') {
+                                this.getFiles();
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Error deleting file:', error);
+                        });
+                }
+            }
+        });
+
+        app.mount('#app');
+    </script>
+</body>
+</html>

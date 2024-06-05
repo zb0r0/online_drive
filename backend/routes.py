@@ -33,56 +33,71 @@ def load_user(user_id):
 def home_page():
     if current_user.is_authenticated:
         files = FileStorage.query.filter_by(user_id=current_user.id).all()
-        return render_template("index.html", files=files)
-    return render_template("index.html")
+        files_data = [{
+            'id': file.id,
+            'filename': file.filename,
+            'filepath': file.filepath
+        } for file in files]
+        return jsonify({'files': files_data})
+    return jsonify({'message': 'Not authenticated'})
 
-@app.route('/register', methods=['GET', 'POST'])
+@app.route('/register', methods=['POST'])
 def register():
     if current_user.is_authenticated:
-        return redirect(url_for('home_page'))
-    form = RegistrationForm()
-    if form.validate_on_submit():
+        return jsonify({'message': 'Already authenticated'})
+
+    data = request.get_json()
+    form = RegistrationForm(data=data)
+    if form.validate():
         hashed_password = generate_password_hash(form.password.data, method='pbkdf2:sha256')
         user = User(username=form.username.data, email=form.email.data, password=hashed_password)
         db.session.add(user)
         db.session.commit()
-        flash('Your account has been created! You can now log in.', 'success')
-        return redirect(url_for('login'))
-    return render_template('register.html', form=form)
+        return jsonify({'message': 'Registration successful'})
+    else:
+        errors = form.errors
+        return jsonify({'errors': errors}), 400
 
-@app.route('/login', methods=['GET', 'POST'])
+@app.route('/login', methods=['POST'])
 def login():
     if current_user.is_authenticated:
-        return redirect(url_for('home_page'))
-    form = LoginForm()
-    if form.validate_on_submit():
+        return jsonify({'message': 'Already authenticated'})
+
+    data = request.get_json()
+    form = LoginForm(data=data)
+    if form.validate():
         user = User.query.filter_by(email=form.email.data).first()
         if user and check_password_hash(user.password, form.password.data):
             login_user(user)
-            return redirect(url_for('home_page'))
+            return jsonify({'message': 'Login successful'})
         else:
-            flash('Login Unsuccessful. Please check email and password', 'danger')
-    return render_template('login.html', form=form)
+            return jsonify({'message': 'Invalid credentials'}), 401
+    else:
+        errors = form.errors
+        return jsonify({'errors': errors}), 400
 
-@app.route('/logout')
+@app.route('/logout', methods=['POST'])
 @login_required
 def logout():
     logout_user()
-    return redirect(url_for('home_page'))
+    return jsonify({'message': 'Logout successful'})
 
-@app.route('/profile')
+@app.route('/profile', methods=['GET'])
 @login_required
 def profile():
-    return render_template('profile.html')
+    return jsonify({
+        'username': current_user.username,
+        'email': current_user.email,
+        'premium': current_user.premium
+    })
 
-@app.route('/upload', methods=['GET', 'POST'])
+@app.route('/upload', methods=['POST'])
 @login_required
 def upload_file():
     if not current_user.premium:
         user_file_count = FileStorage.query.filter_by(user_id=current_user.id).count()
         if user_file_count >= 3:
-            flash('Non-premium users can upload up to 3 files only.', 'danger')
-            return redirect(url_for('home_page'))
+            return jsonify({'message': 'Non-premium users can upload up to 3 files only'}), 403
 
     form = UploadFileForm()
     if form.validate_on_submit():
@@ -95,16 +110,17 @@ def upload_file():
         db.session.add(file_storage)
         db.session.commit()
 
-        flash('File successfully uploaded', 'success')
-        return redirect(url_for('home_page'))
-    return render_template('upload.html', form=form)
+        return jsonify({'message': 'File successfully uploaded'})
+    else:
+        errors = form.errors
+        return jsonify({'errors': errors}), 400
 
-@app.route('/uploads/<filename>')
+@app.route('/uploads/<filename>', methods=['GET'])
 @login_required
 def uploaded_file(filename):
     return send_from_directory('uploads', filename)
 
-@app.route('/delete/<int:file_id>', methods=['POST'])
+@app.route('/delete/<int:file_id>', methods=['DELETE'])
 @login_required
 def delete_file(file_id):
     file = FileStorage.query.get_or_404(file_id)
@@ -115,16 +131,14 @@ def delete_file(file_id):
     db.session.delete(file)
     db.session.commit()
 
-    flash('File deleted successfully', 'success')
-    return redirect(url_for('home_page'))
+    return jsonify({'message': 'File deleted successfully'})
 
 @app.route('/buy_premium', methods=['POST'])
 @login_required
 def buy_premium():
     access_token = get_payu_access_token()
     if not access_token:
-        flash('Failed to obtain access token from PayU', 'danger')
-        return redirect(url_for('profile'))
+        return jsonify({'message': 'Failed to obtain access token from PayU'}), 500
 
     order_data = {
         "notifyUrl": app.config['PAYU_NOTIFY_URL'],
@@ -165,12 +179,11 @@ def buy_premium():
     logging.debug(f'PayU response content: {response.content}')
 
     if response.status_code in (200, 201):
-        return redirect(response.json().get('redirectUri'))
+        return jsonify({'redirectUri': response.json().get('redirectUri')})
     elif response.status_code == 302:
-        return redirect(response.headers.get('Location'))
+        return jsonify({'redirectUri': response.headers.get('Location')})
     else:
-        flash('There was an error with the payment gateway.', 'danger')
-        return redirect(url_for('profile'))
+        return jsonify({'message': 'There was an error with the payment gateway'}), 500
 
 @app.route('/notify', methods=['POST'])
 def notify():
@@ -184,8 +197,13 @@ def notify():
             db.session.commit()
             logging.info(f'User {user.email} has been upgraded to premium.')
         else:
-            logging.warning(f'User with email {data['order']['buyer']['email']} not found.')
+            logging.warning(f'User with email {data["order"]["buyer"]["email"]} not found.')
     else:
         logging.warning(f'Order status is not completed: {data["order"]["status"]}')
 
     return jsonify({'status': 'ok'})
+
+# Obsługa plików statycznych
+@app.route('/static/<path:path>', methods=['GET'])
+def send_static(path):
+    return send_from_directory('static', path)
