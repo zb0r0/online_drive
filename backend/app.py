@@ -11,9 +11,10 @@ login_manager.login_message_category = 'info'
 
 from backend.models import User
 from backend.routes import *
+from backend.api import *
 
 if not os.path.exists('backend/uploads'):
-    os.makedirs('uploads')
+    os.makedirs('backend/uploads')
 
 if __name__ == '__main__':
     app.run(debug=True)

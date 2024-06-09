@@ -1,5 +1,6 @@
 from backend.app import db
 from flask_login import UserMixin
+from marshmallow_sqlalchemy import SQLAlchemyAutoSchema
 
 class User(db.Model, UserMixin):
     id = db.Column(db.Integer, primary_key=True)
@@ -20,3 +21,17 @@ class FileStorage(db.Model):
 
     def __repr__(self):
         return f"File('{self.filename}')"
+
+#schematy serializacji
+class UserSchema(SQLAlchemyAutoSchema):
+    class Meta:
+        model = User
+        include_relationships = True
+        load_instance = True
+        exclude = ('password',)  # Exclude password from the serialized output
+
+class FileStorageSchema(SQLAlchemyAutoSchema):
+    class Meta:
+        model = FileStorage
+        include_fk = True
+        load_instance = True
