@@ -8,6 +8,9 @@ from backend.app import app, db, login_manager
 from backend.models import User, FileStorage
 from backend.forms import RegistrationForm, LoginForm, UploadFileForm
 import logging
+import backend.api  # Importuje nasze nowe API
+
+logging.basicConfig(level=logging.DEBUG)
 
 def get_payu_access_token():
     response = requests.post(
@@ -127,7 +130,7 @@ def buy_premium():
         return redirect(url_for('profile'))
 
     order_data = {
-        "notifyUrl": app.config['PAYU_NOTIFY_URL'],
+        "notifyUrl": url_for('notify', _external=True),
         "customerIp": request.remote_addr,
         "merchantPosId": app.config['PAYU_CLIENT_ID'],
         "description": "Premium Membership",
@@ -145,7 +148,7 @@ def buy_premium():
             "firstName": current_user.username,
             "language": "pl"
         },
-        "continueUrl": app.config['PAYU_CONTINUE_URL']
+        "continueUrl": url_for('profile', _external=True)
     }
 
     headers = {
@@ -176,16 +179,23 @@ def buy_premium():
 def notify():
     data = request.json
     logging.debug(f'PayU notification received: {data}')
-    print(data)
-    if data['order']['status'] == 'COMPLETED':
-        user = User.query.filter_by(email=data['order']['buyer']['email']).first()
-        if user:
-            user.premium = True
-            db.session.commit()
-            logging.info(f'User {user.email} has been upgraded to premium.')
+    if not data:
+        logging.error('No data received in notification')
+        return jsonify({'status': 'error', 'message': 'No data received'}), 400
+
+    try:
+        if data['order']['status'] == 'COMPLETED':
+            user = User.query.filter_by(email=data['order']['buyer']['email']).first()
+            if user:
+                user.premium = True
+                db.session.commit()
+                logging.info(f'User {user.email} has been upgraded to premium.')
+            else:
+                logging.warning(f'User with email {data["order"]["buyer"]["email"]} not found.')
         else:
-            logging.warning(f'User with email {data['order']['buyer']['email']} not found.')
-    else:
-        logging.warning(f'Order status is not completed: {data["order"]["status"]}')
+            logging.warning(f'Order status is not completed: {data["order"]["status"]}')
+    except KeyError as e:
+        logging.error(f'Missing key in PayU notification data: {e}')
+        return jsonify({'status': 'error', 'message': f'Missing key: {e}'}), 400
 
     return jsonify({'status': 'ok'})
