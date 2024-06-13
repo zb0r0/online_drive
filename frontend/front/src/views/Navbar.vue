@@ -18,23 +18,21 @@
           <li class="nav-item">
             <router-link class="nav-link active" aria-current="page" to="/">Drive</router-link>
           </li>
-          <li class="nav-item">
+          <li class="nav-item" v-if="isAuthenticated">
             <router-link class="nav-link" to="/profile">Your profile</router-link>
           </li>
         </ul>
-        <form class="d-flex" role="search">
-          <ul class="navbar-nav me-auto mb-2 mb-lg-0">
-            <li class="nav-item" v-if="!isAuthenticated">
-              <router-link class="nav-link active" aria-current="page" to="/login">Login</router-link>
-            </li>
-            <li class="nav-item" v-if="!isAuthenticated">
-              <router-link class="nav-link" to="/register">Register</router-link>
-            </li>
-            <li class="nav-item" v-if="isAuthenticated">
-              <a class="nav-link" @click="logout">Logout</a>
-            </li>
-          </ul>
-        </form>
+        <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+          <li class="nav-item" v-if="!isAuthenticated">
+            <router-link class="nav-link active" aria-current="page" to="/login">Login</router-link>
+          </li>
+          <li class="nav-item" v-if="!isAuthenticated">
+            <router-link class="nav-link" to="/register">Register</router-link>
+          </li>
+          <li class="nav-item" v-if="isAuthenticated">
+            <a class="nav-link" @click="logout">Logout</a>
+          </li>
+        </ul>
       </div>
     </div>
   </nav>
@@ -51,6 +49,7 @@ export default {
   methods: {
     logout() {
       localStorage.removeItem('token');
+      localStorage.removeItem('userId');
       this.$router.push('/login');
     }
   }
@@ -58,5 +57,7 @@ export default {
 </script>
 
 <style scoped>
-
+.nav-link {
+  cursor: pointer;
+}
 </style>

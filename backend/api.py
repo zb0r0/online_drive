@@ -1,5 +1,5 @@
 import os
-from flask import Flask, request, jsonify, send_from_directory
+from flask import Flask, request, jsonify, send_from_directory, make_response
 from flask_restful import Api, Resource
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
@@ -8,8 +8,9 @@ import logging
 import jwt
 import datetime
 from functools import wraps
-from backend.app import app, db  # Assuming these are correctly imported
+from backend.app import app, db
 from backend.models import User, FileStorage, UserSchema, FileStorageSchema
+from sqlalchemy.exc import IntegrityError
 
 logging.basicConfig(level=logging.DEBUG)
 
@@ -62,10 +63,23 @@ class UserListResource(Resource):
 
     def post(self):
         data = request.json
+        if User.query.filter_by(email=data['email']).first():
+            return jsonify({'message': 'Email already exists'}), 400
+
         hashed_password = generate_password_hash(data['password'], method='pbkdf2:sha256')
         user = User(username=data['username'], email=data['email'], password=hashed_password)
-        db.session.add(user)
-        db.session.commit()
+        try:
+            db.session.add(user)
+            db.session.commit()
+        except IntegrityError as e:
+            db.session.rollback()
+            logging.error(f"IntegrityError: {e}")
+            return jsonify({'message': 'An error occurred while creating the user.'}), 500
+        except Exception as e:
+            db.session.rollback()
+            logging.error(f"Exception: {e}")
+            return jsonify({'message': 'An unexpected error occurred.'}), 500
+
         return jsonify(user_schema.dump(user)), 201
 
 # Resource for handling file storage
@@ -116,7 +130,7 @@ class LoginResource(Resource):
                 'exp': datetime.datetime.utcnow() + datetime.timedelta(hours=1)
             }, app.config['SECRET_KEY'], algorithm='HS256')
             logging.info('Login successful for user: %s', email)
-            return jsonify({'message': 'Logged in successfully', 'token': token})
+            return jsonify({'message': 'Logged in successfully', 'token': token, 'userId': user.id})
         else:
             logging.warning('Invalid login attempt for user: %s', email)
             return jsonify({'message': 'Invalid credentials'}), 401

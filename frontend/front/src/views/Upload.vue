@@ -28,6 +28,11 @@ export default {
       this.file = e.target.files[0];
     },
     async uploadFile() {
+      if (!this.file) {
+        alert('Please select a file to upload.');
+        return;
+      }
+
       try {
         const formData = new FormData();
         formData.append('file', this.file);
@@ -45,3 +50,7 @@ export default {
   }
 };
 </script>
+
+<style scoped>
+/* Dodaj style, jeśli potrzebujesz */
+</style>

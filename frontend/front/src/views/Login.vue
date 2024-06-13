@@ -14,10 +14,7 @@
         <button type="submit" class="btn btn-primary">Login</button>
       </div>
     </form>
-    <router-link to="/register">Don't have an account? Sign up</router-link>
-    <div v-if="message" class="alert" :class="{'alert-success': success, 'alert-danger': !success}">
-      {{ message }}
-    </div>
+    <router-link to="/register">Don't have an account? Register</router-link>
   </div>
 </template>
 
@@ -29,9 +26,7 @@ export default {
   data() {
     return {
       email: '',
-      password: '',
-      message: '',
-      success: false
+      password: ''
     };
   },
   methods: {
@@ -41,19 +36,12 @@ export default {
           email: this.email,
           password: this.password
         });
+
         localStorage.setItem('token', response.data.token);
-        this.success = true;
-        this.message = 'Logged in successfully';
-        this.$router.push('/');
+        localStorage.setItem('userId', response.data.userId);
+        this.$router.push('/profile');
       } catch (error) {
-        this.success = false;
-        if (error.response && error.response.data) {
-          console.error('Error response data:', error.response.data);
-          this.message = 'Login failed: ' + error.response.data.message;
-        } else {
-          console.error('Error:', error);
-          this.message = 'Login failed: Unknown error';
-        }
+        console.error('Error logging in:', error);
       }
     }
   }

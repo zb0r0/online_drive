@@ -23,7 +23,14 @@ export default {
   methods: {
     async fetchProfile() {
       try {
-        const response = await axios.get(`/users/${localStorage.getItem('userId')}`);
+        const userId = localStorage.getItem('userId');
+        console.log('userId:', userId); // Logowanie userId
+        if (!userId) {
+          console.error('No user ID found in localStorage');
+          return;
+        }
+
+        const response = await axios.get(`/users/${userId}`);
         this.profile = response.data;
       } catch (error) {
         console.error('Error fetching profile:', error);

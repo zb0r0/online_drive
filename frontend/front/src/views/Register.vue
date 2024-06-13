@@ -41,6 +41,10 @@ export default {
   },
   methods: {
     async register() {
+      if (this.password !== this.confirmPassword) {
+        alert("Passwords do not match");
+        return;
+      }
       try {
         await axios.post('/users', {
           username: this.username,
@@ -49,7 +53,11 @@ export default {
         });
         this.$router.push('/login');
       } catch (error) {
-        console.error('Registration failed:', error);
+        if (error.response && error.response.data.message) {
+          alert(error.response.data.message);
+        } else {
+          console.error('Registration failed:', error);
+        }
       }
     }
   }
