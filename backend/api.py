@@ -1,26 +1,26 @@
 import os
-from flask import request, jsonify
-from flask_login import login_user
+from flask import Flask, request, jsonify, send_from_directory
 from flask_restful import Api, Resource
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
-from backend.app import app, db
-from backend.models import User, FileStorage, UserSchema, FileStorageSchema
+from flask_cors import CORS
 import logging
 import jwt
 import datetime
 from functools import wraps
+from backend.app import app, db  # Assuming these are correctly imported
+from backend.models import User, FileStorage, UserSchema, FileStorageSchema
 
 logging.basicConfig(level=logging.DEBUG)
 
 api = Api(app)
+CORS(app)
 
 # Schematy serializacji
 user_schema = UserSchema()
 users_schema = UserSchema(many=True)
 file_schema = FileStorageSchema()
 files_schema = FileStorageSchema(many=True)
-
 
 def token_required(f):
     @wraps(f)
@@ -43,12 +43,11 @@ def token_required(f):
 
     return decorated
 
-
 # Resource for handling users
 class UserResource(Resource):
     def get(self, user_id):
         user = User.query.get_or_404(user_id)
-        return user_schema.dump(user)
+        return jsonify(user_schema.dump(user))
 
     def delete(self, user_id):
         user = User.query.get_or_404(user_id)
@@ -56,11 +55,10 @@ class UserResource(Resource):
         db.session.commit()
         return '', 204
 
-
 class UserListResource(Resource):
     def get(self):
         users = User.query.all()
-        return users_schema.dump(users)
+        return jsonify(users_schema.dump(users))
 
     def post(self):
         data = request.json
@@ -68,15 +66,14 @@ class UserListResource(Resource):
         user = User(username=data['username'], email=data['email'], password=hashed_password)
         db.session.add(user)
         db.session.commit()
-        return user_schema.dump(user), 201
-
+        return jsonify(user_schema.dump(user)), 201
 
 # Resource for handling file storage
 class FileResource(Resource):
     @token_required
     def get(self, current_user, file_id):
         file = FileStorage.query.get_or_404(file_id)
-        return file_schema.dump(file)
+        return jsonify(file_schema.dump(file))
 
     @token_required
     def delete(self, current_user, file_id):
@@ -87,12 +84,11 @@ class FileResource(Resource):
         db.session.commit()
         return '', 204
 
-
 class FileListResource(Resource):
     @token_required
     def get(self, current_user):
         files = FileStorage.query.filter_by(user_id=current_user.id).all()
-        return files_schema.dump(files)
+        return jsonify(files_schema.dump(files))
 
     @token_required
     def post(self, current_user):
@@ -104,8 +100,7 @@ class FileListResource(Resource):
         file_storage = FileStorage(filename=filename, filepath=filepath, user_id=current_user.id)
         db.session.add(file_storage)
         db.session.commit()
-        return file_schema.dump(file_storage), 201
-
+        return jsonify(file_schema.dump(file_storage)), 201
 
 # Resource for login
 class LoginResource(Resource):
@@ -116,7 +111,6 @@ class LoginResource(Resource):
 
         user = User.query.filter_by(email=email).first()
         if user and check_password_hash(user.password, password):
-            login_user(user)
             token = jwt.encode({
                 'user_id': user.id,
                 'exp': datetime.datetime.utcnow() + datetime.timedelta(hours=1)
@@ -126,7 +120,6 @@ class LoginResource(Resource):
         else:
             logging.warning('Invalid login attempt for user: %s', email)
             return jsonify({'message': 'Invalid credentials'}), 401
-
 
 # Adding routes to the API
 api.add_resource(UserListResource, '/api/users')

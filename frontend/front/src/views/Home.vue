@@ -5,7 +5,7 @@
       <h2>Your Files:</h2>
       <ul>
         <li v-for="file in files" :key="file.id">
-          <a :href="file.filepath" target="_blank">{{ file.filename }}</a>
+          <a :href="getBackendFileUrl(file.filename)" target="_blank">{{ file.filename }}</a>
           <button @click="deleteFile(file.id)" class="btn btn-danger btn-sm">Delete</button>
         </li>
       </ul>
@@ -33,7 +33,7 @@ export default {
       try {
         const response = await axios.get('/files');
         console.log('Fetched files:', response.data);
-        this.files = response.data; // Reset and set files in one step
+        this.files = response.data;
       } catch (error) {
         console.error('Error fetching files:', error);
       }
@@ -42,21 +42,20 @@ export default {
       try {
         await axios.delete(`/files/${fileId}`);
         console.log(`Deleted file with id: ${fileId}`);
-        this.fetchFiles(); // Refresh files after deletion
+        this.fetchFiles();
       } catch (error) {
         console.error('Error deleting file:', error);
       }
+    },
+    getBackendFileUrl(filename) {
+      const backendBaseUrl = 'http://127.0.0.1:5000/uploads'; // Bazowy URL backendu
+      return `${backendBaseUrl}/${filename}`;
     }
   },
   created() {
     this.isAuthenticated = !!localStorage.getItem('token');
     if (this.isAuthenticated) {
       this.fetchFiles();
-    }
-  },
-  watch: {
-    files(newFiles) {
-      console.log('Files updated:', newFiles);
     }
   }
 };

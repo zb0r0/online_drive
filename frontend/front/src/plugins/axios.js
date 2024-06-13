@@ -7,7 +7,6 @@ const instance = axios.create({
   },
 });
 
-// Dodaj interceptor do dodawania tokena JWT do nagłówków
 instance.interceptors.request.use(config => {
   const token = localStorage.getItem('token');
   if (token) {

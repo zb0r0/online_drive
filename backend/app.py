@@ -19,4 +19,4 @@ if not os.path.exists('backend/uploads'):
     os.makedirs('backend/uploads')
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(host='0.0.0.0', port=5000, debug=True)
