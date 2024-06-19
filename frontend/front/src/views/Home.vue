@@ -48,7 +48,7 @@ export default {
       }
     },
     getBackendFileUrl(filename) {
-      const backendBaseUrl = 'http://127.0.0.1:5000/uploads'; // Bazowy URL backendu
+      const backendBaseUrl = 'http://127.0.0.1:5000/uploads';
       return `${backendBaseUrl}/${filename}`;
     }
   },

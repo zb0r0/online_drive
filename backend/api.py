@@ -31,7 +31,7 @@ def token_required(f):
             return jsonify({'message': 'Token is missing!'}), 401
 
         try:
-            token = token.split(" ")[1]  # Usunięcie "Bearer " z nagłówka
+            token = token.split(" ")[1]
             data = jwt.decode(token, app.config['SECRET_KEY'], algorithms=["HS256"])
             current_user = User.query.filter_by(id=data['user_id']).first()
             if current_user is None:
@@ -116,7 +116,6 @@ class FileListResource(Resource):
         db.session.commit()
         return jsonify(file_schema.dump(file_storage)), 201
 
-# Resource for login
 class LoginResource(Resource):
     def post(self):
         data = request.json
